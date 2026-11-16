@@ -1,0 +1,13 @@
+{
+  "name": "@chaotic-minds-gaming/atlas-adventures",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Versioned, idempotent quest progress engine for CMG ATLAS Core events.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "exports": { ".": "./src/quest-engine.js" },
+  "scripts": {
+    "check": "node --check src/quest-engine.js && node --check test/quest-engine.test.js",
+    "test": "node --test"
+  }
+}

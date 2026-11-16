@@ -21,17 +21,19 @@ Quest, challenge and progression system integrated with identity, tribes, events
 Adventures owns quest definitions, progress, completions, seasons, leaderboard snapshots and anti-abuse metadata. Core owns identity, entitlements and reward jobs.
 
 ## Milestones
-1. Define quest schema and idempotent progress engine
-2. Build offline simulation and validation
-3. Use supported Core events first; extend ingestion later
-4. Add player/tribe objectives
-5. Deliver rewards through Core worker contract
-6. Add seasons, leaderboards and scheduled events
+1. **Define quest schema and idempotent progress engine — first version completed.** The schema validates quest identity/revision, cluster/grid/server scope, objectives and currently supported player event types.
+2. **Build offline simulation and validation — first version completed.** The pure reducer normalizes Core's actual `game.event.received` outbox record, then handles scope checks, outbox-record ID replay detection, progress increments and completion without a live server.
+3. **Use supported Core events first — partial.** Core accepts 23 normalized event types; the native ATLAS adapter currently emits only `player.joined` and `player.left`, which the engine supports. Other event producers and a durable Core outbox worker remain pending.
+4. Add player/tribe objectives — player join/leave objectives are implemented; tribe objectives and additional event producers remain pending.
+5. Deliver rewards through Core worker contract — pending confirmed ATLAS grant implementation.
+6. Add seasons, leaderboards and scheduled events — pending.
 
 ## Technical gates and risks
-- Core event API currently supports joined/left/chat, server start/stop and death only; other events need API expansion
-- Reward delivery awaits confirmed ATLAS grant implementation
-- Prevent replay and cross-grid duplicate progress
+- The current reducer is an offline, in-memory foundation. Production requires durable progress and a persistent unique constraint/idempotency record for processed event IDs.
+- The native adapter PR now includes the source server UUID in generated event IDs. That change still requires review/merge and isolated runtime validation. Production progress still requires durable idempotency keyed by the Core outbox record UUID.
+- Core's normalized event allowlist is broader than the native adapter's current event production. Only `player.joined` and `player.left` are presently emitted by the adapter.
+- Reward delivery awaits confirmed ATLAS grant implementation.
+- Prevent replay and cross-grid duplicate progress before production enablement.
 
 ## Shared engineering requirements
 - Use authenticated, least-privilege Core APIs; no direct database credentials in plugins.
@@ -45,4 +47,4 @@ Adventures owns quest definitions, progress, completions, seasons, leaderboard s
 - Do not deploy to production or change live server configuration during repository planning.
 
 ## Current readiness
-Documentation and planning scaffold. Exact ATLAS server build, loader, SDK, callbacks and feature-specific capabilities require isolated reproducible validation.
+Versioned quest definitions, player join/leave progress, scope checks, event-ID replay detection and offline simulation are implemented with twelve unit tests. Progress is in memory only; no Core outbox transport, durable persistence, tribe events or reward delivery is enabled. The adapter's player hooks remain disabled pending isolated ATLAS runtime validation.
