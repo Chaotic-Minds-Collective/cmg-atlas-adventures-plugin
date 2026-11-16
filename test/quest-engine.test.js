@@ -126,3 +126,53 @@ test("rejects progress state from a different quest revision", () => {
   const state = createQuestProgressState(definition);
   assert.throws(() => applyQuestEvent(quest({ revision: 2 }), state, event("66666666-6666-4666-8666-000000000001")), /match the quest ID and revision/);
 });
+
+
+test("canonicalizes quest UUIDs and matches scope regardless of letter case", () => {
+  const questId = "abcdefab-cdef-4abc-8def-abcdefabcdef";
+  const clusterId = "bcdefabc-defa-4bcd-9efa-bcdefabcdefa";
+  const serverId = "cdefabcd-efab-4cde-abcd-cdefabcdefab";
+  for (const uppercaseQuest of [false, true]) {
+    const definition = quest({
+      questId: uppercaseQuest ? questId.toUpperCase() : questId,
+      scope: {
+        clusterId: uppercaseQuest ? clusterId.toUpperCase() : clusterId,
+        serverIds: [uppercaseQuest ? serverId.toUpperCase() : serverId]
+      }
+    });
+    const validated = validateQuestDefinition(definition);
+    assert.equal(validated.questId, questId);
+    assert.equal(validated.scope.clusterId, clusterId);
+    assert.deepEqual(validated.scope.serverIds, [serverId]);
+    const state = createQuestProgressState(definition);
+    assert.equal(state.questId, questId);
+    const result = applyQuestEvent({ ...definition, questId }, state,
+      event("abcdefab-cdef-4abc-8def-000000000001", {
+        clusterId: uppercaseQuest ? clusterId : clusterId.toUpperCase(),
+        serverId: uppercaseQuest ? serverId : serverId.toUpperCase()
+      }));
+    assert.equal(result.outcome.status, "applied");
+    assert.equal(result.state.players["76561198000000000"].objectives["join-any-grid"], 1);
+  }
+});
+
+test("treats differently cased outbox UUIDs as the same event", () => {
+  const definition = quest();
+  const eventId = "abcdefab-cdef-4abc-8def-abcdefabcdef";
+  for (const ids of [[eventId.toUpperCase(), eventId], [eventId, eventId.toUpperCase()]]) {
+    const first = applyQuestEvent(definition, createQuestProgressState(definition), event(ids[0]));
+    const duplicate = applyQuestEvent(definition, first.state, event(ids[1]));
+    assert.equal(first.outcome.eventId, eventId);
+    assert.equal(duplicate.outcome.status, "duplicate");
+    assert.equal(duplicate.state, first.state);
+    assert.deepEqual(duplicate.state.processedEventIds, [eventId]);
+    assert.equal(duplicate.state.players["76561198000000000"].objectives["join-any-grid"], 1);
+  }
+});
+
+test("rejects duplicate server UUIDs with different letter case", () => {
+  const serverId = "abcdefab-cdef-4abc-8def-abcdefabcdef";
+  assert.throws(() => validateQuestDefinition(quest({
+    scope: { clusterId: CLUSTER_ID, serverIds: [serverId, serverId.toUpperCase()] }
+  })), (error) => error.path === "quest.scope.serverIds" && /duplicates/.test(error.message));
+});

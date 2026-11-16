@@ -36,7 +36,7 @@ function text(value, path, max = 200) {
 function uuid(value, path) {
   const result = text(value, path, 36);
   if (!UUID.test(result)) fail(path + " must be a UUID", path, "INVALID_UUID");
-  return result;
+  return result.toLowerCase();
 }
 
 function positiveInteger(value, path, max = 100_000) {
