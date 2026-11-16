@@ -119,26 +119,34 @@ export function createQuestProgressState(questInput) {
   });
 }
 
-function validateEvent(event) {
-  object(event, "event", ["eventId", "eventType", "occurredAt", "scope", "payload"],
-    ["eventId", "eventType", "occurredAt", "scope", "payload"]);
-  const eventId = text(event.eventId, "event.eventId", 200);
-  const eventType = text(event.eventType, "event.eventType", 100);
-  const occurredAt = text(event.occurredAt, "event.occurredAt", 50);
-  if (!Number.isFinite(Date.parse(occurredAt))) fail("event.occurredAt must be a valid timestamp", "event.occurredAt");
-  object(event.scope, "event.scope", ["clusterId", "gridId", "serverId"], ["clusterId", "gridId", "serverId"]);
-  if (!event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) fail("event.payload must be an object", "event.payload");
-  return {
+export function normalizeCoreOutboxEvent(outboxEvent) {
+  object(outboxEvent, "outboxEvent", ["id", "eventType", "aggregateType", "aggregateId", "payload", "occurredAt", "attempts", "leaseToken", "leaseExpiresAt"],
+    ["id", "eventType", "payload"]);
+  const eventId = uuid(outboxEvent.id, "outboxEvent.id");
+  if (outboxEvent.eventType !== "game.event.received") {
+    fail("outboxEvent.eventType must be game.event.received", "outboxEvent.eventType", "UNSUPPORTED_OUTBOX_TYPE");
+  }
+  const payload = outboxEvent.payload;
+  object(payload, "outboxEvent.payload", ["eventRecordId", "serverId", "clusterId", "gridId", "correlationId", "game", "eventId", "eventType", "occurredAt", "payload"],
+    ["eventRecordId", "serverId", "clusterId", "gridId", "game", "eventId", "eventType", "occurredAt", "payload"]);
+  if (payload.game !== "atlas") fail("outboxEvent.payload.game must be atlas", "outboxEvent.payload.game", "UNSUPPORTED_GAME");
+  if (!payload.payload || typeof payload.payload !== "object" || Array.isArray(payload.payload)) {
+    fail("outboxEvent.payload.payload must be an object", "outboxEvent.payload.payload");
+  }
+  const occurredAt = text(payload.occurredAt, "outboxEvent.payload.occurredAt", 50);
+  if (!Number.isFinite(Date.parse(occurredAt))) fail("outboxEvent.payload.occurredAt must be a valid timestamp", "outboxEvent.payload.occurredAt");
+  return deepFreeze({
     eventId,
-    eventType,
+    sourceEventId: text(payload.eventId, "outboxEvent.payload.eventId", 200),
+    eventType: text(payload.eventType, "outboxEvent.payload.eventType", 100),
     occurredAt,
     scope: {
-      clusterId: uuid(event.scope.clusterId, "event.scope.clusterId"),
-      gridId: text(event.scope.gridId, "event.scope.gridId"),
-      serverId: uuid(event.scope.serverId, "event.scope.serverId")
+      clusterId: uuid(payload.clusterId, "outboxEvent.payload.clusterId"),
+      gridId: text(payload.gridId, "outboxEvent.payload.gridId"),
+      serverId: uuid(payload.serverId, "outboxEvent.payload.serverId")
     },
-    payload: event.payload
-  };
+    payload: payload.payload
+  });
 }
 
 function copyPlayers(players) {
@@ -157,7 +165,7 @@ export function applyQuestEvent(questInput, stateInput, eventInput) {
   if (!Array.isArray(stateInput.processedEventIds) || !stateInput.players || typeof stateInput.players !== "object") {
     fail("progress state has an invalid shape", "state");
   }
-  const event = validateEvent(eventInput);
+  const event = normalizeCoreOutboxEvent(eventInput);
   if (stateInput.processedEventIds.includes(event.eventId)) {
     return Object.freeze({ state: stateInput, outcome: Object.freeze({ status: "duplicate", eventId: event.eventId }) });
   }
