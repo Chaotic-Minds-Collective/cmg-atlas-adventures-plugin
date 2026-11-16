@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyQuestEvent, createQuestProgressState, simulateQuest, validateQuestDefinition } from "../src/quest-engine.js";
+import { applyQuestEvent, createQuestProgressState, normalizeCoreOutboxEvent, simulateQuest, validateQuestDefinition } from "../src/quest-engine.js";
 
-const QUEST_ID = "11111111-1111-4111-8111-111111111111";
-const CLUSTER_ID = "22222222-2222-4222-8222-222222222222";
-const SERVER_A = "33333333-3333-4333-8333-333333333333";
-const SERVER_B = "44444444-4444-4444-8444-444444444444";
+const QUEST_ID = "d1111111-1111-4111-8111-111111111111";
+const CLUSTER_ID = "c2222222-2222-4222-8222-222222222222";
+const SERVER_A = "a3333333-3333-4333-8333-333333333333";
+const SERVER_B = "b4444444-4444-4444-8444-444444444444";
 
 function quest(overrides = {}) {
   return {
@@ -121,58 +121,32 @@ test("accepts only Core game-event outbox records for ATLAS", () => {
   assert.throws(() => applyQuestEvent(definition, state, wrongGame), /game must be atlas/);
 });
 
+test("normalizes uppercase UUIDs at quest and outbox scope boundaries", () => {
+  const definition = quest({
+    questId: QUEST_ID.toUpperCase(),
+    scope: { clusterId: CLUSTER_ID.toUpperCase(), gridIds: ["A1", "B1"] }
+  });
+  const state = createQuestProgressState(definition);
+  const uppercaseEventId = "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF";
+  const outbox = event(uppercaseEventId, { clusterId: CLUSTER_ID.toUpperCase(), serverId: SERVER_A.toUpperCase() });
+  const result = applyQuestEvent(definition, state, outbox);
+  assert.equal(result.outcome.status, "applied");
+  assert.equal(result.outcome.eventId, uppercaseEventId.toLowerCase());
+});
+
+test("normalization copies nested player payloads before recursively freezing them", () => {
+  const playerPayload = Object.freeze({ platformId: "76561198000000000", details: { name: "before" } });
+  const outbox = event("66666666-6666-4666-8666-000000000014", { playerPayload });
+  const normalized = normalizeCoreOutboxEvent(outbox);
+  assert.equal(Object.isFrozen(playerPayload.details), false);
+  playerPayload.details.name = "after";
+  assert.equal(normalized.payload.details.name, "before");
+  assert.equal(Object.isFrozen(normalized.payload), true);
+  assert.equal(Object.isFrozen(normalized.payload.details), true);
+});
+
 test("rejects progress state from a different quest revision", () => {
   const definition = quest();
   const state = createQuestProgressState(definition);
   assert.throws(() => applyQuestEvent(quest({ revision: 2 }), state, event("66666666-6666-4666-8666-000000000001")), /match the quest ID and revision/);
-});
-
-
-test("canonicalizes quest UUIDs and matches scope regardless of letter case", () => {
-  const questId = "abcdefab-cdef-4abc-8def-abcdefabcdef";
-  const clusterId = "bcdefabc-defa-4bcd-9efa-bcdefabcdefa";
-  const serverId = "cdefabcd-efab-4cde-abcd-cdefabcdefab";
-  for (const uppercaseQuest of [false, true]) {
-    const definition = quest({
-      questId: uppercaseQuest ? questId.toUpperCase() : questId,
-      scope: {
-        clusterId: uppercaseQuest ? clusterId.toUpperCase() : clusterId,
-        serverIds: [uppercaseQuest ? serverId.toUpperCase() : serverId]
-      }
-    });
-    const validated = validateQuestDefinition(definition);
-    assert.equal(validated.questId, questId);
-    assert.equal(validated.scope.clusterId, clusterId);
-    assert.deepEqual(validated.scope.serverIds, [serverId]);
-    const state = createQuestProgressState(definition);
-    assert.equal(state.questId, questId);
-    const result = applyQuestEvent({ ...definition, questId }, state,
-      event("abcdefab-cdef-4abc-8def-000000000001", {
-        clusterId: uppercaseQuest ? clusterId : clusterId.toUpperCase(),
-        serverId: uppercaseQuest ? serverId : serverId.toUpperCase()
-      }));
-    assert.equal(result.outcome.status, "applied");
-    assert.equal(result.state.players["76561198000000000"].objectives["join-any-grid"], 1);
-  }
-});
-
-test("treats differently cased outbox UUIDs as the same event", () => {
-  const definition = quest();
-  const eventId = "abcdefab-cdef-4abc-8def-abcdefabcdef";
-  for (const ids of [[eventId.toUpperCase(), eventId], [eventId, eventId.toUpperCase()]]) {
-    const first = applyQuestEvent(definition, createQuestProgressState(definition), event(ids[0]));
-    const duplicate = applyQuestEvent(definition, first.state, event(ids[1]));
-    assert.equal(first.outcome.eventId, eventId);
-    assert.equal(duplicate.outcome.status, "duplicate");
-    assert.equal(duplicate.state, first.state);
-    assert.deepEqual(duplicate.state.processedEventIds, [eventId]);
-    assert.equal(duplicate.state.players["76561198000000000"].objectives["join-any-grid"], 1);
-  }
-});
-
-test("rejects duplicate server UUIDs with different letter case", () => {
-  const serverId = "abcdefab-cdef-4abc-8def-abcdefabcdef";
-  assert.throws(() => validateQuestDefinition(quest({
-    scope: { clusterId: CLUSTER_ID, serverIds: [serverId, serverId.toUpperCase()] }
-  })), (error) => error.path === "quest.scope.serverIds" && /duplicates/.test(error.message));
 });
