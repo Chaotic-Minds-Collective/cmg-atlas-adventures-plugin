@@ -1,27 +1,30 @@
 # CMG Adventures
 
-Quest, challenge and progression system integrated with identity, tribes, events and rewards.
+Quest, challenge and progression engine for CMG ATLAS. This repository now contains the first offline quest schema and player-event progress reducer.
 
-This Chaotic Minds Gaming-specific module extends [Chaotic Minds Gaming Core](https://github.com/Chaotic-Minds-Collective/cmg-atlas-core-plugin) and the [ATLAS integration adapter](https://github.com/Chaotic-Minds-Collective/cmg-atlas-plugin); it does not replace either foundation.
+## Implemented
 
-## Feature scope
-- Quest chains, objectives and prerequisites
-- Daily/weekly challenges and seasonal events
-- Progression tracks and skill unlocks where supported
-- Player/tribe leaderboards
-- Rewards through Core entitlements and leased delivery
-- Admin quest editor and versioned events
+- Strict, versioned quest definitions with cluster, optional grid/server scope, objectives and enabled state.
+- Player objectives for the two event types currently emitted by the native adapter: `player.joined` and `player.left`.
+- Immutable progress state with event-ID idempotency, scope filtering, completion timestamps and deterministic offline simulation.
+- No network calls, database access, reward grants, or server mutations.
 
-## Architecture and dependencies
-- Core identity, event outbox, entitlements and reward delivery
-- ATLAS adapter: verified player/tribe/death/kill/crafting/exploration events
-- Player for progression; Tribes for group objectives
-- Commerce for rewards; Connect for announcements
+## Not implemented yet
 
-Core remains authoritative for shared identity, authorization and platform records. ATLAS-native calls pass through the shared adapter. This module owns its domain state and must not connect directly to PostgreSQL.
+- Durable progress persistence and production Core event-outbox worker.
+- Tribe objectives, death/kill/crafting/exploration events, seasons, leaderboards, admin editor, or scheduled events.
+- Reward claims or item delivery. Rewards must go through Core and remain blocked until ATLAS grants are verified.
 
-## Implementation plan
-See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for data ownership, milestones and technical gates.
+Core accepts a wider normalized event allowlist, but the native adapter currently emits only player join/leave events. The current progress reducer is an offline foundation; its in-memory processed-event list is not a substitute for durable production idempotency.
 
-## Readiness
-Planning scaffold only. Native ATLAS compatibility and feature-specific callbacks are not yet verified on an isolated server. No production deployment is implied.
+## Development
+
+Requires Node.js 22 or later.
+
+```bash
+npm ci
+npm run check
+npm test
+```
+
+Tests use synthetic events and do not connect to Core or an ATLAS server.
