@@ -47,4 +47,4 @@ Adventures owns quest definitions, progress, completions, seasons, leaderboard s
 - Do not deploy to production or change live server configuration during repository planning.
 
 ## Current readiness
-Versioned quest definitions, player join/leave progress, scope checks, event-ID replay detection and offline simulation are implemented with ten unit tests. Progress is in memory only; no Core outbox transport, durable persistence, tribe events or reward delivery is enabled. The adapter's player hooks remain disabled pending isolated ATLAS runtime validation.
+Versioned quest definitions, player join/leave progress, scope checks, event-ID replay detection and offline simulation are implemented with twelve unit tests. Progress is in memory only; no Core outbox transport, durable persistence, tribe events or reward delivery is enabled. The adapter's player hooks remain disabled pending isolated ATLAS runtime validation.
