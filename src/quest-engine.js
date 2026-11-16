@@ -47,9 +47,9 @@ function positiveInteger(value, path, max = 100_000) {
 }
 
 function deepFreeze(value) {
-  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  if (!value || typeof value !== "object") return value;
   for (const child of Object.values(value)) deepFreeze(child);
-  return Object.freeze(value);
+  return Object.isFrozen(value) ? value : Object.freeze(value);
 }
 
 export function validateQuestDefinition(input) {
@@ -130,6 +130,7 @@ export function normalizeCoreOutboxEvent(outboxEvent) {
   object(payload, "outboxEvent.payload", ["eventRecordId", "serverId", "clusterId", "gridId", "correlationId", "game", "eventId", "eventType", "occurredAt", "payload"],
     ["eventRecordId", "serverId", "clusterId", "gridId", "game", "eventId", "eventType", "occurredAt", "payload"]);
   if (payload.game !== "atlas") fail("outboxEvent.payload.game must be atlas", "outboxEvent.payload.game", "UNSUPPORTED_GAME");
+  uuid(payload.eventRecordId, "outboxEvent.payload.eventRecordId");
   if (!payload.payload || typeof payload.payload !== "object" || Array.isArray(payload.payload)) {
     fail("outboxEvent.payload.payload must be an object", "outboxEvent.payload.payload");
   }
@@ -145,7 +146,7 @@ export function normalizeCoreOutboxEvent(outboxEvent) {
       gridId: text(payload.gridId, "outboxEvent.payload.gridId"),
       serverId: uuid(payload.serverId, "outboxEvent.payload.serverId")
     },
-    payload: payload.payload
+    payload: structuredClone(payload.payload)
   });
 }
 
