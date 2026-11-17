@@ -7,7 +7,7 @@
   "engines": { "node": ">=22" },
   "exports": { ".": "./src/quest-engine.js" },
   "scripts": {
-    "check": "node --check src/quest-engine.js && node --check test/quest-engine.test.js",
+    "check": "node --check src/quest-engine.js && node --check src/core-quest-worker.js && node --check test/quest-engine.test.js && node --check test/core-quest-worker.test.js",
     "test": "node --test"
   }
 }
