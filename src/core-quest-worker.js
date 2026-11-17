@@ -41,7 +41,7 @@ function validateClaim(row, serverId) {
   const leaseToken = requireUuid(row.leaseToken, "leaseToken");
   if (typeof row.leaseExpiresAt !== "string" || !Number.isFinite(Date.parse(row.leaseExpiresAt))) throw new AdventuresWorkerError("Core returned an invalid event lease expiry");
   if (event.scope.serverId !== serverId) throw new AdventuresWorkerError("Core returned an event outside this server scope");
-  return Object.freeze({ ...event, leaseToken, leaseExpiresAt: row.leaseExpiresAt });
+  return Object.freeze({ ...event, leaseToken, leaseExpiresAt: row.leaseExpiresAt, raw: row });
 }
 
 export function createAdventuresWorker(options = {}) {
@@ -110,7 +110,7 @@ export function createAdventuresWorker(options = {}) {
     let current = await loadProgress(quest, platformId);
     for (let attempt = 0; attempt < maxProgressConflicts; attempt += 1) {
       const baseState = current.state ?? createQuestProgressState(quest);
-      const applied = applyQuestEvent(quest, baseState, event);
+      const applied = applyQuestEvent(quest, baseState, event.raw);
       if (!["applied", "completed", "already_completed"].includes(applied.outcome.status)) return applied.outcome;
       try {
         const { status, result } = await request(`/quests/${quest.questId}/progress`, "POST", {
@@ -146,7 +146,7 @@ export function createAdventuresWorker(options = {}) {
     let updated = 0;
     let matched = 0;
     for (const quest of quests) {
-      const preview = applyQuestEvent(quest, createQuestProgressState(quest), event);
+      const preview = applyQuestEvent(quest, createQuestProgressState(quest), event.raw);
       if (!["applied", "completed"].includes(preview.outcome.status)) continue;
       matched += 1;
       await persistProgress(quest, event, platformId);
