@@ -4,10 +4,16 @@
   "private": true,
   "description": "Versioned, idempotent quest progress engine for CMG ATLAS Core events.",
   "type": "module",
-  "engines": { "node": ">=22" },
-  "exports": { ".": "./src/quest-engine.js" },
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": "./src/quest-engine.js",
+    "./worker": "./src/core-quest-worker.js"
+  },
   "scripts": {
-    "check": "node --check src/quest-engine.js && node --check src/core-quest-worker.js && node --check test/quest-engine.test.js && node --check test/core-quest-worker.test.js",
-    "test": "node --test"
+    "check": "node --check src/quest-engine.js && node --check src/core-quest-worker.js && node --check src/run-worker.js && node --check test/quest-engine.test.js && node --check test/core-quest-worker.test.js",
+    "test": "node --test",
+    "start:worker": "node src/run-worker.js"
   }
 }
