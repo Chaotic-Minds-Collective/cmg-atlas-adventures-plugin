@@ -51,8 +51,9 @@ export function createAdventuresWorker(options = {}) {
   const serverId = requireUuid(options.serverId, "serverId");
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   if (typeof fetchImpl !== "function") throw new TypeError("fetchImpl must be a function");
-  // Claim one event by default: events are processed sequentially and each claim
-  // starts its own lease clock. Operators may raise this after sizing lease duration.
+  // Until every claimed event receives a heartbeat while waiting in the batch,
+  // this worker must claim exactly one event to prevent later leases expiring
+  // before sequential processing reaches them.
   const limit = options.limit ?? 1;
   const leaseSeconds = options.leaseSeconds ?? 120;
   const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -60,7 +61,7 @@ export function createAdventuresWorker(options = {}) {
   const pollIntervalMs = options.pollIntervalMs ?? 5000;
   const leaseRenewIntervalMs = options.leaseRenewIntervalMs ?? Math.floor(leaseSeconds * 1000 / 3);
   const onError = options.onError;
-  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new TypeError("limit must be between 1 and 100");
+  if (limit !== 1) throw new TypeError("limit must be 1 until the worker can renew every claimed event concurrently");
   if (!Number.isInteger(leaseSeconds) || leaseSeconds < 15 || leaseSeconds > 300) throw new TypeError("leaseSeconds must be between 15 and 300");
   if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 60000) throw new TypeError("requestTimeoutMs must be between 1 and 60000");
   if (!Number.isInteger(maxProgressConflicts) || maxProgressConflicts < 1 || maxProgressConflicts > 10) throw new TypeError("maxProgressConflicts must be between 1 and 10");
@@ -284,8 +285,9 @@ export function createAdventuresWorker(options = {}) {
 
   async function runLoop() {
     while (!stopRequested) {
+      let claimed = 0;
       try {
-        await pollOnce();
+        ({ claimed } = await pollOnce());
       } catch (error) {
         metrics.pollErrors += 1;
         metrics.lastError = safeErrorMessage(error, credential);
@@ -293,7 +295,7 @@ export function createAdventuresWorker(options = {}) {
           try { onError(error, getStatus()); } catch { /* observer failures must not stop polling */ }
         }
       }
-      if (!stopRequested) await waitForNextPoll();
+      if (!stopRequested && claimed === 0) await waitForNextPoll();
     }
     lifecycle = "stopped";
     return getStatus();

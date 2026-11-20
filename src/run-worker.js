@@ -20,7 +20,7 @@ const worker = createAdventuresWorker({
   baseUrl: requiredEnv("ATLAS_CORE_BASE_URL"),
   credential: requiredEnv("ATLAS_CORE_SERVICE_CREDENTIAL"),
   serverId: requiredEnv("ATLAS_SERVER_ID"),
-  limit: integerEnv("ATLAS_QUEST_BATCH_SIZE", 1, 1, 100),
+  limit: 1,
   leaseSeconds,
   requestTimeoutMs: integerEnv("ATLAS_QUEST_REQUEST_TIMEOUT_MS", 10000, 1, 60000),
   pollIntervalMs: integerEnv("ATLAS_QUEST_POLL_INTERVAL_MS", 5000, 250, 300000),
