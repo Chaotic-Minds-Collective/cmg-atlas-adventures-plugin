@@ -285,8 +285,9 @@ export function createAdventuresWorker(options = {}) {
 
   async function runLoop() {
     while (!stopRequested) {
+      let claimed = 0;
       try {
-        await pollOnce();
+        ({ claimed } = await pollOnce());
       } catch (error) {
         metrics.pollErrors += 1;
         metrics.lastError = safeErrorMessage(error, credential);
@@ -294,7 +295,7 @@ export function createAdventuresWorker(options = {}) {
           try { onError(error, getStatus()); } catch { /* observer failures must not stop polling */ }
         }
       }
-      if (!stopRequested) await waitForNextPoll();
+      if (!stopRequested && claimed === 0) await waitForNextPoll();
     }
     lifecycle = "stopped";
     return getStatus();

@@ -169,3 +169,34 @@ test("renews an active Core event lease while a slow quest update is running", a
   assert.equal(instance.getStatus().leaseRenewals, renewals);
   assert.ok(calls.indexOf(`/api/v1/integrations/servers/${serverId}/events/${eventId}/renew`) < calls.indexOf(`/api/v1/integrations/servers/${serverId}/events/${eventId}/ack`));
 });
+
+
+test("immediately claims the next event after a nonempty poll instead of idling", async () => {
+  let claims = 0;
+  let resolveSecondClaim;
+  const secondClaim = new Promise((resolve) => { resolveSecondClaim = resolve; });
+  const missingIdentity = { ...row(), payload: { ...row().payload, payload: { playerName: "No ID" } } };
+  const instance = worker({ pollIntervalMs: 300000, fetchImpl: async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/events/claim")) {
+      claims += 1;
+      if (claims === 1) return response(200, { data: [missingIdentity] });
+      if (claims === 2) {
+        resolveSecondClaim();
+        return response(200, { data: [] });
+      }
+    }
+    if (path.endsWith(`/events/${eventId}/ack`)) return response(202, { data: { accepted: true, duplicate: false, eventId } });
+    throw new Error(`Unexpected request ${path}`);
+  } });
+
+  instance.start();
+  await Promise.race([
+    secondClaim,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("worker idled after a nonempty poll")), 1500))
+  ]);
+  assert.equal(claims, 2);
+  const status = await instance.stop();
+  assert.equal(status.lifecycle, "stopped");
+  assert.equal(status.polls, 2);
+});
