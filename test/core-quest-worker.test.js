@@ -132,6 +132,10 @@ test("reports recurring poll errors and continues polling until stopped", async 
   assert.ok(claims >= 2);
 });
 
+test("fails closed when configured to claim more than one event before concurrent lease heartbeats exist", () => {
+  assert.throws(() => worker({ limit: 2 }), /limit must be 1/);
+});
+
 test("validates lifecycle polling interval and error observer", () => {
   assert.throws(() => worker({ pollIntervalMs: 10 }), /pollIntervalMs/);
   assert.throws(() => worker({ leaseRenewIntervalMs: 10000, leaseSeconds: 15 }), /leaseRenewIntervalMs/);
